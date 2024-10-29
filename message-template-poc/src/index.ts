@@ -25,7 +25,7 @@ app.get('/api/test', (req: Request, res: Response, next: NextFunction) => {
 // Rota para análise de mensagem
 app.post('/api/analyze', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { message } = req.body;
+        const { message } = req.body;   
    
         if (!message) {
             res.status(400).json({

@@ -19,11 +19,12 @@ const keywordCategories: KeywordCategory[] = [
     {
         category: 'preço',
         keywords: [
-            'valor', 'preço', 'custo', 'caro', 'barato', 
-            'desconto', 'promoção', 'pagamento', 'parcelas',
-            'orçamento', 'investimento'
+            'valor', 'preco', 'preço', 'custo', 'caro', 'barato', 
+            'desconto', 'promocao', 'promoção', 'pagamento', 'parcelas',
+            'orcamento', 'orçamento', 'investimento', 'financeiro',
+            'quanto', 'custa', 'cobram', 'cobra'
         ],
-        weight: 1
+        weight: 2  // Aumentando o peso para garantir prioridade
     },
     {
         category: 'urgência',
@@ -62,10 +63,12 @@ const defaultTemplates: { [key: string]: string[] } = {
 
 export class MessageAnalyzer {
     private normalizeText(text: string): string {
-        return text.toLowerCase()
+        const normalized = text.toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '') // Remove acentos
             .replace(/[^\w\s]/g, ' '); // Remove caracteres especiais
+        console.log('Texto normalizado:', normalized);
+        return normalized;
     }
 
     private calculateCategoryScore(text: string, category: KeywordCategory): number {
@@ -73,20 +76,21 @@ export class MessageAnalyzer {
         const normalizedText = this.normalizeText(text);
         
         category.keywords.forEach(keyword => {
-            const regex = new RegExp(`\\b${keyword}\\b`, 'g');
-            const matches = normalizedText.match(regex);
-            if (matches) {
-                score += matches.length * category.weight;
+            // Usar includes em vez de regex para maior flexibilidade
+            if (normalizedText.includes(keyword)) {
+                score += category.weight;
+                console.log(`Palavra-chave encontrada: ${keyword} na categoria ${category.category}`);
             }
         });
-
+    
         return score;
     }
 
     public analyzeMessage(message: string): AnalysisResult {
+        // Inicializar objeto de categorias e pontuação total
         const categories: { [key: string]: number } = {};
         let totalScore = 0;
-
+    
         // Calcular pontuação para cada categoria
         keywordCategories.forEach(category => {
             const score = this.calculateCategoryScore(message, category);
@@ -94,19 +98,25 @@ export class MessageAnalyzer {
             totalScore += score;
         });
 
-        // Encontrar categoria dominante
-        let dominantCategory = Object.entries(categories)
-            .reduce((a, b) => a[1] > b[1] ? a : b)[0];
+        console.log('Pontuações por categoria:', categories);
 
-        // Se não houver categoria dominante clara, usar 'informação' como padrão
-        if (totalScore === 0) {
-            dominantCategory = 'informação';
+        // Filtrar e ordenar categorias ativas (com pontuação > 0)
+        const activeCategories = Object.entries(categories)
+    .filter(entry => entry[1] > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+        // Determinar categoria dominante
+        let dominantCategory = 'informação'; // Valor padrão
+
+        if (activeCategories.length > 0) {
+            dominantCategory = activeCategories[0][0];
         }
 
-        // Calcular confiança (normalizada entre 0 e 1)
+        // Calcular nível de confiança
         const confidence = totalScore > 0 ? 
             categories[dominantCategory] / totalScore : 0.5;
 
+        // Retornar resultado da análise
         return {
             categories,
             dominantCategory,
