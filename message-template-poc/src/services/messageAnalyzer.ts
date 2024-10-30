@@ -1,127 +1,70 @@
-// src/services/messageAnalyzer.ts
+import storageService from './storageService';
+import { Category, Template } from '../models/types';
 
 export interface AnalysisResult {
-    categories: {
-        [key: string]: number;
-    };
-    dominantCategory: string;
-    suggestedTemplates: string[];
-    confidence: number;
+   categories: {
+       [key: string]: number;
+   };
+   dominantCategory: string; 
+   suggestedTemplates: string[];
+   confidence: number;
 }
-
-interface KeywordCategory {
-    category: string;
-    keywords: string[];
-    weight: number;
-}
-
-const keywordCategories: KeywordCategory[] = [
-    {
-        category: 'preço',
-        keywords: [
-            'valor', 'preco', 'preço', 'custo', 'caro', 'barato', 
-            'desconto', 'promocao', 'promoção', 'pagamento', 'parcelas',
-            'orcamento', 'orçamento', 'investimento', 'financeiro',
-            'quanto', 'custa', 'cobram', 'cobra'
-        ],
-        weight: 2  // Aumentando o peso para garantir prioridade
-    },
-    {
-        category: 'urgência',
-        keywords: [
-            'urgente', 'emergência', 'dor', 'agora', 
-            'imediato', 'hoje', 'rápido', 'socorro',
-            'grave', 'urgência'
-        ],
-        weight: 2
-    },
-    {
-        category: 'informação',
-        keywords: [
-            'dúvida', 'como', 'informação', 'funciona', 
-            'explicar', 'saber', 'conhecer', 'procedimento',
-            'tratamento', 'consulta'
-        ],
-        weight: 1
-    }
-];
-
-const defaultTemplates: { [key: string]: string[] } = {
-    'preço': [
-        "Entendo sua preocupação com os valores. Nossa clínica oferece diversas opções de pagamento e parcelamento. Podemos agendar uma avaliação gratuita para discutir o melhor plano para você?",
-        "Trabalhamos com preços competitivos e várias formas de pagamento. Que tal agendarmos uma avaliação sem compromisso para discutirmos as melhores opções para seu caso?"
-    ],
-    'urgência': [
-        "Compreendo a urgência da sua situação. Temos horários disponíveis para emergências. Poderia me dizer mais sobre o que está sentindo?",
-        "Nossa clínica está preparada para atendimentos de urgência. Vou priorizar seu caso. Pode me dar mais detalhes sobre o que está acontecendo?"
-    ],
-    'informação': [
-        "Claro! Ficarei feliz em esclarecer suas dúvidas sobre nossos tratamentos. Qual procedimento específico você gostaria de conhecer melhor?",
-        "Posso te explicar detalhadamente sobre nossos procedimentos. Qual aspecto específico você gostaria de entender melhor?"
-    ]
-};
 
 export class MessageAnalyzer {
-    private normalizeText(text: string): string {
-        const normalized = text.toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-            .replace(/[^\w\s]/g, ' '); // Remove caracteres especiais
-        console.log('Texto normalizado:', normalized);
-        return normalized;
-    }
+   private normalizeText(text: string): string {
+       return text.toLowerCase()
+           .normalize('NFD')
+           .replace(/[\u0300-\u036f]/g, '')
+           .replace(/[^\w\s]/g, ' ');
+   }
 
-    private calculateCategoryScore(text: string, category: KeywordCategory): number {
-        let score = 0;
-        const normalizedText = this.normalizeText(text);
-        
-        category.keywords.forEach(keyword => {
-            // Usar includes em vez de regex para maior flexibilidade
-            if (normalizedText.includes(keyword)) {
-                score += category.weight;
-                console.log(`Palavra-chave encontrada: ${keyword} na categoria ${category.category}`);
-            }
-        });
-    
-        return score;
-    }
+   private calculateCategoryScore(text: string, category: Category): number {
+       let score = 0;
+       const normalizedText = this.normalizeText(text);
+       
+       category.keywords.forEach(keyword => {
+           if (normalizedText.includes(this.normalizeText(keyword))) {
+               score += category.weight;
+           }
+       });
+   
+       return score;
+   }
 
-    public analyzeMessage(message: string): AnalysisResult {
-        // Inicializar objeto de categorias e pontuação total
-        const categories: { [key: string]: number } = {};
-        let totalScore = 0;
-    
-        // Calcular pontuação para cada categoria
-        keywordCategories.forEach(category => {
-            const score = this.calculateCategoryScore(message, category);
-            categories[category.category] = score;
-            totalScore += score;
-        });
+   public async analyzeMessage(message: string): Promise<AnalysisResult> {
+       const categories = await storageService.getCategories();
+       const templates = await storageService.getTemplates();
+       const scores: { [key: string]: number } = {};
+       let totalScore = 0;
 
-        console.log('Pontuações por categoria:', categories);
+       // Calculate scores
+       for (const category of categories) {
+           const score = this.calculateCategoryScore(message, category);
+           scores[category.name] = score;
+           totalScore += score;
+       }
 
-        // Filtrar e ordenar categorias ativas (com pontuação > 0)
-        const activeCategories = Object.entries(categories)
-    .filter(entry => entry[1] > 0)
-    .sort((a, b) => b[1] - a[1]);
+       // Find dominant category
+       const sortedCategories = Object.entries(scores)
+           .sort(([,a], [,b]) => b - a);
+       
+       const dominantCategory = sortedCategories.length > 0 && sortedCategories[0][1] > 0 
+           ? sortedCategories[0][0]
+           : categories[0]?.name || 'default';
 
-        // Determinar categoria dominante
-        let dominantCategory = 'informação'; // Valor padrão
+       // Get suggested templates
+       const categoryObj = categories.find(c => c.name === dominantCategory);
+       const suggestedTemplates = templates
+           .filter(t => t.categoryId === categoryObj?.id)
+           .map(t => t.text);
 
-        if (activeCategories.length > 0) {
-            dominantCategory = activeCategories[0][0];
-        }
+       const confidence = totalScore > 0 ? scores[dominantCategory] / totalScore : 0;
 
-        // Calcular nível de confiança
-        const confidence = totalScore > 0 ? 
-            categories[dominantCategory] / totalScore : 0.5;
-
-        // Retornar resultado da análise
-        return {
-            categories,
-            dominantCategory,
-            suggestedTemplates: defaultTemplates[dominantCategory] || defaultTemplates['informação'],
-            confidence
-        };
-    }
+       return {
+           categories: scores,
+           dominantCategory,
+           suggestedTemplates: suggestedTemplates.length > 0 ? suggestedTemplates : [],
+           confidence
+       };
+   }
 }

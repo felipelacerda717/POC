@@ -1,0 +1,28 @@
+[
+  {
+    "name": "teste1",
+    "keywords": [
+      "teste",
+      "isso",
+      "é",
+      "um",
+      "teste"
+    ],
+    "weight": 1,
+    "id": "a620544f-9af4-4f31-82db-5baabb098a13",
+    "createdAt": "2024-10-30T14:24:02.043Z",
+    "updatedAt": "2024-10-30T14:24:02.043Z"
+  },
+  {
+    "name": "teste2",
+    "keywords": [
+      "teste2",
+      "com",
+      "para"
+    ],
+    "weight": 1,
+    "id": "44c256e6-f153-4eec-ace0-0a9b492a6381",
+    "createdAt": "2024-10-30T17:52:32.739Z",
+    "updatedAt": "2024-10-30T17:52:32.739Z"
+  }
+]
